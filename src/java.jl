@@ -1,5 +1,5 @@
-import Pkg
-Pkg.add("JavaCall")
+# import Pkg
+# Pkg.add("JavaCall")
 using JavaCall
 JavaCall.init(["-Xmx128M"])
 
@@ -30,22 +30,26 @@ jlReflectionInvocationTargetException = @jimport java.lang.reflect.InvocationTar
 println("----- Method -----")
 
 l = listmethods(jlReflectionMethod)
+jtReflectionMethods = Dict()
 
 for i = 1:size(l)[1]
-	println(l[i])
+	# println("Name: " * getname(l[i]))
+	# println("ReturnType: ", getreturntype(l[i]))
+	# println("ArgumentsTypes: ", getparametertypes(l[i]))
 end
 
-jtReflectionMethods = Dict()
-"""
 merge!(jtReflectionMethods, Dict(
-	:l[1][1] => (jtr) ->
-		() -> JavaValue(jcall(jtr, "getName", jlReflectionMethod, ()), jtReflectionMethods)
+	getname(l[1]) => (jtr) ->
+		(args...) -> JavaValue(jcall(jtr, getname(l[1]), jlReflectionMethod, getparametertypes(l[1]), args), jtReflectionMethods)
 ))
 
+print(jtReflectionMethods["invoke"](""))
+
+"""
 
 println(jtReflectionMethods)
 jtReflectionMethods["invoke"](jtReflectionMethods)()
-"""
+
 
 println("----- Parameter -----")
 
@@ -54,3 +58,4 @@ l = listmethods(jlReflectionParameter)
 for i = 1:size(l)[1]
 	println(l[i])
 end
+"""
