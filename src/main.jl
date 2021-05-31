@@ -13,6 +13,16 @@ Base.show(io::IO, obj::JavaObject) = print(io, jcall(obj, "toString", JString, (
 Base.show(io::IO, jv::JavaValue) = show(io, getfield(jv, :ref))
 Base.getproperty(jv::JavaValue, sym::Symbol) = getfield(jv, :methods)[sym](getfield(jv, :ref))
 
+types = Dict(
+	:boolean => jboolean,
+	:char => jchar,
+	:int => jint,
+	:long => jlong,
+	:float => jfloat,
+	:double => jdouble,
+	Symbol("java.lang.Object") => JObject
+)
+
 function importLib(jLib)
 
 	l = listmethods(jlMath)
@@ -22,16 +32,14 @@ function importLib(jLib)
 
 		argstypes = tuple()
 		for j = 1:size(getparametertypes(l[i]))[1]
-			argstypes = tuple(argstypes..., "j"*getname(getparametertypes(l[i])[j]))
+			argstypes = tuple(argstypes..., types[Symbol(getname(getparametertypes(l[i])[j]))])
 		end
 
 		merge!(mathLib, Dict(
 			Meta.parse(getname(l[i])) => (jtr) ->
-				(args...) -> JavaValue(jcall(jtr, getname(l[i]), "j"*getname(getreturntype(l[i])), argstypes, args), mathLib)
+				(args...) -> JavaValue(jcall(jtr, getname(l[i]), types[Symbol(getreturntype(l[i]))], argstypes, args), mathLib)
 		))
 	end
-
-	# println(getreturntype(l[1]), typeof(getreturntype(l[1])))
 
 	return JavaValue(jlMath(()), mathLib)
 end
@@ -39,4 +47,7 @@ end
 jlMath = @jimport java.lang.Math
 lib = importLib(jlMath)
 
-lib.abs(-15)
+# dump(lib.abs(15))
+# getproperty(lib, :abs)(-15)
+
+lib.sin(pi/2)
