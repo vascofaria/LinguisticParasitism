@@ -1,3 +1,4 @@
+using Base: Symbol
 # import Pkg
 # Pkg.add("JavaCall")
 using JavaCall
@@ -24,9 +25,19 @@ end
 
 function getAvailableMethods(receiver, name, argstypes)
 	l = listmethods(receiver, name)
-	# search a method that is compatible with the arguments
 
-	return listmethods(receiver, name)[1]
+	for i = 1:size(l)[1]
+		parametertypes = getParameterTypes(l[i])
+		for j = 1:length(parametertypes)
+			#println(parametertypes[j], argstypes[j])
+			if parametertypes[j] != argstypes[j]
+				break
+			end
+		end
+		return l[i]
+	end
+	
+	throw(MethodError(e, "METHODS DOESNT EXIST"))
 end
 
 function getParameterTypes(method)
@@ -44,6 +55,11 @@ end
 function invoke(receiver, name, args...)
 	try
 		argstypes = getArgumentsTypes(args)
+
+		#println(receiver)
+		#println(name)
+		#println(args)
+		#println(argstypes)
 		
 		method = getAvailableMethods(receiver, name, argstypes)
 
@@ -89,7 +105,7 @@ importClass("java.lang.Integer")
 jlMath = importClass("java.lang.Math")
 println(invoke(jlMath, "sin", pi/2))
 
-println(types.int)
+#println(types.int)
 
 """
 jlString = importClass("java.lang.String")
