@@ -1,17 +1,7 @@
-# include("java.jl")
-# include("introspection.jl")
-
+# import Pkg
+# Pkg.add("JavaCall")
 using JavaCall
 JavaCall.init(["-Xmx128M"])
-
-struct JavaValue
-	ref::JavaObject
-	methods::Dict
-end
-
-Base.show(io::IO, obj::JavaObject) = print(io, jcall(obj, "toString", JString, ()))
-Base.show(io::IO, jv::JavaValue) = show(io, getfield(jv, :ref))
-Base.getproperty(jv::JavaValue, sym::Symbol) = getfield(jv, :methods)[sym](getfield(jv, :ref))
 
 types = Dict(
 	:boolean => jboolean,
@@ -19,35 +9,84 @@ types = Dict(
 	:int => jint,
 	:long => jlong,
 	:float => jfloat,
-	:double => jdouble,
-	Symbol("java.lang.Object") => JObject
+	:double => jdouble# ,
+	# Symbol("java.lang.Object") => JObject,
+	# Symbol("java.lang.String") => JString
 )
 
-function importLib(jLib)
-
-	l = listmethods(jlMath)
-	mathLib = Dict()
-
-	for i = 1:size(l)[1]
-
-		argstypes = tuple()
-		for j = 1:size(getparametertypes(l[i]))[1]
-			argstypes = tuple(argstypes..., types[Symbol(getname(getparametertypes(l[i])[j]))])
-		end
-
-		merge!(mathLib, Dict(
-			Meta.parse(getname(l[i])) => (jtr) ->
-				(args...) -> JavaValue(jcall(jtr, getname(l[i]), types[Symbol(getreturntype(l[i]))], argstypes, args), mathLib)
-		))
-	end
-
-	return JavaValue(jlMath(()), mathLib)
+function getAvailableMethods(receiver, name, argstypes)
+	return listmethods(receiver, name)[1]
 end
 
+function invoke(receiver, name, class::Type, args...)
+	try
+		argstypes = tuple()
+		for i = 1:length(args)
+			argstypes = tuple(argstypes..., typeof(args[i]))
+		end
+		
+		method = getAvailableMethods(receiver, name, argstypes)
+
+		parameterstypes = tuple()
+		for j = 1:size(getparametertypes(method))[1]
+			parameterstypes = tuple(parameterstypes..., types[Symbol(getname(getparametertypes(method)[j]))])
+		end
+
+		# returntype = types[Symbol(getname(getreturntype(method)))]
+		returntype = class
+
+		convertedargs = tuple()
+		for i = 1:length(args)
+			convertedargs = tuple(convertedargs..., convert(parameterstypes[i], args[i]))
+		end
+
+		return jcall(receiver, getname(method), returntype, parameterstypes, convertedargs...)
+
+	catch e
+		println("ERROR: ", e)
+	end
+end
+
+function invoke(class, name, args...)
+	try
+		argstypes = tuple()
+		for i = 1:length(args)
+			argstypes = tuple(argstypes..., typeof(args[i]))
+		end
+		
+		method = getAvailableMethods(class, name, argstypes)
+
+		parameterstypes = tuple()
+		for j = 1:size(getparametertypes(method))[1]
+			parameterstypes = tuple(parameterstypes..., types[Symbol(getname(getparametertypes(method)[j]))])
+		end
+
+		returntype = types[Symbol(getname(getreturntype(method)))]
+
+		convertedargs = tuple()
+		for i = 1:length(args)
+			convertedargs = tuple(convertedargs..., convert(parameterstypes[i], args[i]))
+		end
+
+		return jcall(class, getname(method), returntype, parameterstypes, convertedargs...)
+
+	catch e
+		println("ERROR: ", e)
+	end
+end
+
+Base.show(io::IO, obj::JavaObject) = println(io, jcall(obj, "toString", JString, ()))
+# Base.getproperty(obj::JavaObject, sym::Symbol) = invoke(obj, sym)[sym](getfield(jv, :ref))
+
+jtLD = @jimport java.time.LocalDate
+local_date_now() = jcall(jtLD, "now", jtLD, ())
+instance = local_date_now()
+show(invoke(instance, "plusYears", jtLD, 3))
+
 jlMath = @jimport java.lang.Math
-lib = importLib(jlMath)
+class = jlMath
+println(invoke(class, "sin", pi/2))
 
-# dump(lib.abs(15))
-# getproperty(lib, :abs)(-15)
-
-lib.sin(pi/2)
+jlString = @jimport java.lang.String
+instance = jlString((""))
+println(invoke(instance, "isEmpty"))
