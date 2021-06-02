@@ -3,37 +3,112 @@
 using JavaCall
 JavaCall.init(["-Xmx128M"])
 
-types = Dict(
+struct JavaValue
+	ref::JavaObject
+	methods::Dict{}
+end
+
+function Base.getproperty(obj::JavaValue, sym::Symbol)
+	if (haskey(getfield(obj, :methods), sym))
+		# Methods with diff parameters will fail
+		# We need to create a Dcit of Arrays to know the parameters types
+		return getfield(obj, :methods)[sym]
+	else
+		# create new method
+		newmethod = invoke(getfield(obj, :ref), string(sym), args)
+		return newmethod
+	end
+	return getfield(obj, :ref)[sym]
+end
+
+"""
+ld = LocalDate.now()
+
+ld = ld.plusYears(2)
+ld = ld.plusYears(2.0)
+"""
+
+Methods = Dict(
+	:plusYears => [x -> println(1 * x), x -> println(1 + x)],
+	:ola => []
+)
+
+
+# ld.plusYears(2) => importar todos os plusYears
+# ld.plusYears(2.0)
+
+struct JtoJType
+	types::Dict{Symbol, DataType}
+end
+
+Base.getproperty(obj::JtoJType, sym::Symbol) = getfield(obj, :types)[sym]
+
+_types = Dict(
 	:boolean => jboolean,
 	:char => jchar,
 	:int => jint,
 	:long => jlong,
 	:float => jfloat,
-	:double => jdouble# ,
-	# Symbol("java.lang.Object") => JObject,
-	# Symbol("java.lang.String") => JString
+	:double => jdouble
 )
 
-function getAvailableMethods(receiver, name, argstypes)
-	return listmethods(receiver, name)[1]
+function getArgumentsTypes(args)
+	argstypes = tuple()
+	for i = 1:length(args)
+		argstypes = tuple(argstypes..., typeof(args[i]))
+	end
+	return argstypes
 end
 
-function invoke(receiver, name, class::Type, args...)
-	try
-		argstypes = tuple()
-		for i = 1:length(args)
-			argstypes = tuple(argstypes..., typeof(args[i]))
+function getAvailableMethods(receiver, name, argstypes)
+	l = listmethods(receiver, name)
+
+	for i = 1:size(l)[1]
+		parametertypes = getParameterTypes(l[i])
+		for j = 1:length(parametertypes)
+			#println(parametertypes[j], argstypes[j])
+			if parametertypes[j] != argstypes[j] # TODO Use isAssignableFrom
+				break
+			end
 		end
+		return l[i]
+	end
+	
+	throw(MethodError(e, "Method Does not exist."))
+end
+
+function getParameterTypes(method)
+	parameterstypes = tuple()
+	for j = 1:size(getparametertypes(method))[1]
+
+		if (!haskey(_types, Symbol(getname(getparametertypes(method)[j]))))
+			importClass(getname(getparametertypes(method)[j]))
+		end
+
+		parameterstypes = tuple(parameterstypes..., _types[Symbol(getname(getparametertypes(method)[j]))])
+	end
+	return parameterstypes
+end
+
+function getReturnType(method)
+
+	if (!haskey(_types, Symbol(getname(getreturntype(method)))))
+		importClass(getname(getreturntype(method)))
+	end
+
+	return _types[Symbol(getname(getreturntype(method)))]
+end
+
+function invoke(receiver, name, args...)
+	# TODO import lib, with lazy
+	try
+		argstypes = getArgumentsTypes(args)
 		
 		method = getAvailableMethods(receiver, name, argstypes)
 
-		parameterstypes = tuple()
-		for j = 1:size(getparametertypes(method))[1]
-			parameterstypes = tuple(parameterstypes..., types[Symbol(getname(getparametertypes(method)[j]))])
-		end
+		parameterstypes = getParameterTypes(method)
 
-		# returntype = types[Symbol(getname(getreturntype(method)))]
-		returntype = class
+		returntype = getReturnType(method)
 
 		convertedargs = tuple()
 		for i = 1:length(args)
@@ -47,46 +122,39 @@ function invoke(receiver, name, class::Type, args...)
 	end
 end
 
-function invoke(class, name, args...)
-	try
-		argstypes = tuple()
-		for i = 1:length(args)
-			argstypes = tuple(argstypes..., typeof(args[i]))
-		end
-		
-		method = getAvailableMethods(class, name, argstypes)
+Base.show(io::IO, obj::JavaObject) = println(io, jcall(obj, "toString", JString, ()))
 
-		parameterstypes = tuple()
-		for j = 1:size(getparametertypes(method))[1]
-			parameterstypes = tuple(parameterstypes..., types[Symbol(getname(getparametertypes(method)[j]))])
-		end
-
-		returntype = types[Symbol(getname(getreturntype(method)))]
-
-		convertedargs = tuple()
-		for i = 1:length(args)
-			convertedargs = tuple(convertedargs..., convert(parameterstypes[i], args[i]))
-		end
-
-		return jcall(class, getname(method), returntype, parameterstypes, convertedargs...)
-
-	catch e
-		println("ERROR: ", e)
-	end
+function importClass(className)
+	# println("Importing: ", className)
+	merge!(_types, Dict(
+		Symbol(className) => JavaObject{Symbol(className)}
+	))
+	return JavaObject{Symbol(className)}
 end
 
-Base.show(io::IO, obj::JavaObject) = println(io, jcall(obj, "toString", JString, ()))
+
+LocalDate = importClass("java.time.LocalDate")
+instance = invoke(LocalDate, "now")
+
+show(invoke(instance, "plusYears", 3))
+instance = invoke(instance, "plusYears", 3)
+show(invoke(instance, "plusWeeks", 3))
+show(invoke(instance, "plusDays", 3))
+
+importClass("java.lang.Integer")
+jlMath = importClass("java.lang.Math")
+println(invoke(jlMath, "sin", pi/2))
+
+"""
+# importClass("java.lang.CharSequence")
+jlString = importClass("java.lang.String")
+instance = jlString("asd")
+println(getname(getclass(instance)))
+println(invoke(instance, "replace", "a", "b"))
+"""
+# TODO Arrays
+
 # Base.getproperty(obj::JavaObject, sym::Symbol) = invoke(obj, sym)[sym](getfield(jv, :ref))
+# Base.getproperty(dict::Dict{Symbol, DataType}, sym::Symbol) = dict[sym]
 
-jtLD = @jimport java.time.LocalDate
-local_date_now() = jcall(jtLD, "now", jtLD, ())
-instance = local_date_now()
-show(invoke(instance, "plusYears", jtLD, 3))
-
-jlMath = @jimport java.lang.Math
-class = jlMath
-println(invoke(class, "sin", pi/2))
-
-jlString = @jimport java.lang.String
-instance = jlString((""))
-println(invoke(instance, "isEmpty"))
+# JavaCall.destroy
