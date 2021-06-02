@@ -6,8 +6,8 @@ JavaCall.init(["-Xmx128M"])
 include("introspection.jl")
 
 struct JavaValue
-	ref::JavaObject
-	methods::Dict{Symbol, IntrospectableFunction[]}
+	ref::Any
+	methods::Dict{Symbol, Array{IntrospectableFunction}}
 end
 
 function Base.getproperty(obj::JavaValue, sym::Symbol)
@@ -17,10 +17,19 @@ function Base.getproperty(obj::JavaValue, sym::Symbol)
 		return getfield(obj, :methods)[sym][1] # TODO choose by parameters
 	else
 		# create new method
-		newmethod = importMethods(getfield(obj, :ref), string(sym), args)
-		return newmethod
+		try
+			importMethods(obj, string(sym))
+			if (haskey(getfield(obj, :methods), sym))
+				return getfield(obj, :methods)[sym][1]
+			else
+				throw("No such method exist")
+			end
+		catch e
+			println("getproperty: ", e)
+			throw(e)
+		end
 	end
-	return getfield(obj, :ref)[sym]
+	# return getfield(obj, :ref)[sym]
 end
 
 """
@@ -28,7 +37,7 @@ ld = LocalDate.now()
 
 ld = ld.plusYears(2)
 ld = ld.plusYears(2.0)
-"""
+
 
 Methods = Dict(
 	:plusYears => [x -> println(1 * x), x -> println(1 + x)],
@@ -40,6 +49,7 @@ println(fahrenheit_from_centigrade(36.5))
 
 # ld.plusYears(2) => importar todos os plusYears
 # ld.plusYears(2.0)
+"""
 
 struct JtoJType
 	types::Dict{Symbol, DataType}
@@ -103,38 +113,95 @@ function getReturnType(method)
 	return _types[Symbol(getname(getreturntype(method)))]
 end
 
-function importMethods(receiver, name, args...)
+function importMethods(receiver::JavaValue, name)
 	# TODO import lib, with lazy
 	try
-		argstypes = getArgumentsTypes(args)
+		# argstypes = getArgumentsTypes(args)
 		
-		method = getAvailableMethods(receiver, name, argstypes)
+		# method = getAvailableMethods(receiver, name, argstypes)
 
-		parameterstypes = getParameterTypes(method)
+		# parameterstypes = getParameterTypes(method)
 
-		returntype = getReturnType(method)
+		# returntype = getReturnType(method)
 
-		convertedargs = tuple()
-		for i = 1:length(args)
-			convertedargs = tuple(convertedargs..., convert(parameterstypes[i], args[i]))
+		availablemethods = listmethods(getfield(receiver, :ref), name)
+
+		merge!(getfield(receiver, :methods), Dict(
+			Symbol(name) => Vector{IntrospectableFunction}()
+		))
+
+		for i = 1:size(availablemethods)[1]
+
+			parameterstypes = getParameterTypes(availablemethods[i])
+			returntype = getReturnType(availablemethods[i])
+
+			push!(
+				getfield(receiver, :methods)[Symbol(name)],
+					IntrospectableFunction(
+						Symbol(name),
+						parameterstypes,
+						(args...) -> begin
+							convertedargs = tuple()
+							for j = 1:length(args)
+								convertedargs = tuple(convertedargs..., convert(parameterstypes[j], args[j]))
+							end
+							return JavaValue(jcall(getfield(receiver, :ref), name, returntype, parameterstypes, convertedargs...), Dict())
+						end
+					)
+			)
 		end
-
-		return jcall(receiver, getname(method), returntype, parameterstypes, convertedargs...)
 
 	catch e
 		println("ERROR: ", e)
 	end
 end
 
-Base.show(io::IO, obj::JavaObject) = println(io, jcall(obj, "toString", JString, ()))
+Base.show(io::IO, obj::JavaObject) = print(io, jcall(obj, "toString", JString, ()))
+Base.show(io::IO, obj::JavaValue) = print(io, jcall(getfield(obj, :ref), "toString", JString, ()))
 
 function importClass(className)
 	# println("Importing: ", className)
 	merge!(_types, Dict(
 		Symbol(className) => JavaObject{Symbol(className)}
 	))
-	return JavaObject{Symbol(className)}
+	return JavaValue(JavaObject{Symbol(className)}, Dict())
 end
+
+"""
+LocalDate = importClass("java.time.LocalDate")
+
+merge!(getfield(LocalDate, :methods), Dict(
+	Symbol("now") => Vector{IntrospectableFunction}()
+))
+
+m = listmethods(getfield(LocalDate, :ref), "now")[1]
+
+
+f = IntrospectableFunction(
+	"now",
+	getParameterTypes(m),
+	(args...) -> println(args)
+)
+
+push!(
+	getfield(LocalDate, :methods)[:now],
+	f
+)
+
+println(LocalDate)
+"""
+
+LocalDate = importClass("java.time.LocalDate")
+
+t = LocalDate.now()
+println(t.plusDays(2))
+
+myString = importClass("java.lang.String")
+
+# s = JavaValue(getfield(myString, :ref)(""), Dict())
+println(getfield(myString, :ref)(()))
+
+# println(s.isEmpty())
 
 """
 LocalDate = importClass("java.time.LocalDate")
