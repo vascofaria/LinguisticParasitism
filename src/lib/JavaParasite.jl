@@ -13,14 +13,8 @@ Base.show(io::IO, obj::JavaValue) = print(io, jcall(getfield(obj, :ref), "toStri
 
 # Call JavaValue ref (Class) constructor
 # Returns a JavaValue with ref instanciated
-macro new(args...)
-	cls = eval(args[1])
-	targs = tuple()
-	for i = 2:length(args)
-		targs = tuple(targs..., eval(args[i]))
-	end
-	ref = getfield(cls, :ref)(targs...)
-	obj = JavaValue(ref, Dict())
+macro new(cls, args...)
+	ref = getfield(eval(cls), :ref)(args...)
 	return :( JavaValue($ref, Dict()) )
 end
 

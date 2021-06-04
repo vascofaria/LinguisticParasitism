@@ -5,6 +5,7 @@ Group 9 - Advanced Programming 20/21
 
 ```sh
 export JULIA_COPY_STACKS=1
+cd src/
 julia main.jl
 ```
 
@@ -13,37 +14,37 @@ julia main.jl
 ## How to import our lib
 
 ```jl
-include("lib/JavaParasit.jl")
+include("lib/JavaParasite.jl")
 ```
 
 ## How to import a Java Class
 
 ```jl
 # importClass(className)
-ParasitString = importClass("java.lang.String")
+ParasiteString = importClass("java.lang.String")
 ```
 
 ## How to create an instance of the class
 
 ```jl
 # @new Class arg1 arg2 ...
-str = @new ParasitString "  hello world!"
+str = @new ParasiteString "  hello world!"
 ```
 
 ## How to call a static function
 
 ```jl
 # Class.<function-name>(args...)
-ParasitMath = importClass("java.lang.Math")
-println(ParasitMath.sin(pi/2))
+ParasiteMath = importClass("java.lang.Math")
+ParasiteMath.sin(pi/2)
 ```
 
 ## How to call an object function
 
 ```jl
 # obj.<function-name>(args...)
-ParasitString = importClass("java.lang.String")
-str = @new ParasitString "  hello world!"
+ParasiteString = importClass("java.lang.String")
+str = @new ParasiteString "  hello world!"
 str.trim()
 ```
 
