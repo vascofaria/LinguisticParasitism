@@ -2,21 +2,22 @@
 # Pkg.add("JavaCall")
 include("lib/JavaParasit.jl")
 
-LocalDate = importClass("java.time.LocalDate")
-t = LocalDate.now()
+ParasitLocalDate = importClass("java.time.LocalDate")
+t = ParasitLocalDate.now()
 println(t.plusDays(2))
 
-myString = importClass("java.lang.String")
+ParasitMath = importClass("java.lang.Math")
+println(ParasitMath.sin(pi/2))
 
-a = @new myString "  hello world!"
+ParasitString = importClass("java.lang.String")
+str = @new ParasitString "  hello world!"
+if (!str.isEmpty())
+	str = str.trim().replace('l', 'w')
+	println(str)
+end
 
-println(a.isEmpty())
-println(a.trim())
-println(a.trim())
-println(a.replace('l', 'o'))
-
-HashMap = importClass("java.util.HashMap")
-hm = @new HashMap
+ParasitHashMap = importClass("java.util.HashMap")
+hm = @new ParasitHashMap
 hm.put("foo", "text value")
 println(hm.get("foo"))
 
