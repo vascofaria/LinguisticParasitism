@@ -13,7 +13,14 @@ function (availablemethods::Array{IntrospectableFunction})(args...)
 			valid = true
 
 			for j = 1:length(availablemethods[i].parameterstypes)
-				if (!(typeof(args[j]) <: (availablemethods[i].parameterstypes)[j]))
+				# ignore JavaObjects, let Java handle it
+				# if the argtype is a subtype of parametertype
+				# if the parameter is a primitive type, use the casted value
+				if ((availablemethods[i].parameterstypes)[j] != JObject &&
+					!(typeof(args[j]) <: (availablemethods[i].parameterstypes)[j]) &&
+					!(haskey(_primitivetypes, Symbol((availablemethods[i].parameterstypes)[j])) &&
+					(typeof(args[j]) <: _primitivetypes[Symbol((availablemethods[i].parameterstypes)[j])]))
+				)
 					valid = false
 				end
 			end

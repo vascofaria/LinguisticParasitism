@@ -3,7 +3,7 @@
 using JavaCall
 JavaCall.init(["-Xmx128M"])
 
-include("introspection.jl")
+include("IntrospectableFunction.jl")
 
 struct JavaValue
 	ref::Any
@@ -76,23 +76,6 @@ function getArgumentsTypes(args)
 	return argstypes
 end
 
-function getAvailableMethods(receiver, name, argstypes)
-	l = listmethods(receiver, name)
-
-	for i = 1:size(l)[1]
-		parametertypes = getParameterTypes(l[i])
-		for j = 1:length(parametertypes)
-			println("P: ", argstypes[j] <: parametertypes[j])
-			if parametertypes[j] != argstypes[j] # TODO Use isAssignableFrom
-				break
-			end
-		end
-		return l[i]
-	end
-	
-	throw(MethodError(e, "Method Does not exist."))
-end
-
 function getParameterTypes(method)
 	parameterstypes = tuple()
 	for j = 1:size(getparametertypes(method))[1]
@@ -117,17 +100,7 @@ end
 
 function importMethods(receiver::JavaValue, name)
 	try
-		# argstypes = getArgumentsTypes(args)
-		
-		# method = getAvailableMethods(receiver, name, argstypes)
-
-		# parameterstypes = getParameterTypes(method)
-
-		# returntype = getReturnType(method)
-
 		availablemethods = listmethods(getfield(receiver, :ref), name)
-		# println("--------------------------------------------")
-		# println(listmethods(getfield(receiver, :ref)))
 
 		merge!(getfield(receiver, :methods), Dict(
 			Symbol(name) => Vector{IntrospectableFunction}()
@@ -182,30 +155,6 @@ a = @new myString "  hello world   !"
 println(a.isEmpty())
 println(a.trim())
 println(a.trim())
-"""
-
-#println(jv)
-# println(myString.isAssignableFrom(classforname("java.lang.Object")))
-
-#println(classforname("java.time.LocalDate"))
-
-# c = JavaValue(classforname("java.time.LocalDate"), Dict())
-
-# class = JavaValue(t.getClass(), Dict())
-
-# cl = t.getClass()
-# println(cl)
-
-# a = cl.isAssignableFrom(classforname("java.lang.Object"))
-
-# println(getfield(a, :ref))
-
-# println(cc.isAssignableFrom(classforname("java.lang.Object")))
-
-
-# TODO Arrays
-
-# Base.getproperty(obj::JavaObject, sym::Symbol) = invoke(obj, sym)[sym](getfield(jv, :ref))
-# Base.getproperty(dict::Dict{Symbol, DataType}, sym::Symbol) = dict[sym]
 
 # JavaCall.destroy
+"""
